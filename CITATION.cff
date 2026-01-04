@@ -1,0 +1,9 @@
+cff-version: 1.0.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Wei"
+  given-names: "Xijie"
+title: "GRS_AD64"
+version: 1.0.0
+date-released: 2025-12-28
+url: "https://github.com/Xijie-Wei/GRS_AD64"
