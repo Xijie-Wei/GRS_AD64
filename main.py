@@ -12,7 +12,7 @@ inte_range = np.array([-3,6])#area used to calculate integartion
 bg_range = 20# use wavedatapoint[0:bg_range] to calculate background
 
 #load file 
-file_name = "data_file/RAW_data_20251226_151216.bin"
+file_name = "data_file/RAW_data_PreAmp_All_1.bin"
 file = np.fromfile(file_name,dtype=np.uint8)# common decoding
 file_head = np.fromfile(file_name,dtype=(np.void,4))# for finding general package head
 
@@ -392,6 +392,7 @@ idx_g_timestamp = np.array(idx_g_timestamp).astype(np.int32)
 print(f"{idx_g_board.shape[0]} package labeled")
 #print(np.unique(existed_board_id[idx_g_500_board]))
 #print(idx_g_500_board)
+'''
 plt.figure()
 plt.hist(existed_board_id_new[idx_g_board],bins = 4,range=(0,4))
 plt.ylabel(r"$Count$")
@@ -403,6 +404,7 @@ plt.hist(existed_channel_id[idx_g_channel],bins = 64,range=(0,63))
 plt.ylabel(r"$Count$")
 plt.xlabel(r"$Channel ID$")
 plt.savefig("Hist_channel")
+'''
 
 areas = np.zeros(num_ext_tri+1)
 areas_count = np.zeros(num_ext_tri+1)
@@ -475,7 +477,7 @@ for idx in tqdm(range(idx_g_board.shape[0])):
         plt.ylabel(r'$Data$')
         plt.ylim(bottom=0)
         plt.title(rf'$Board Id: {board_id[0,idx]}(New Id:{existed_board_id_new[existed_board_id == board_id[0,idx]].astype(np.int32)[0]}),Channel Id: {sub_pack_channel_id_int[idx]},Time Stamp: {sub_pack_trigger_source_stamp[idx]}$')
-        plt.savefig(f"output/B{board_id_test}C{channel_id_test}T{timeStamp_test}.png")
+        plt.savefig(f"output/Wave_samples/B{board_id_test}C{channel_id_test}T{timeStamp_test}.png")
         plt.close()
         idx_head_test = idx_head[0,idx]
         #print(file[idx_head_test:idx_head_test+800])
@@ -497,7 +499,7 @@ plt.xlabel(r'$Normalized \enspace Area$')
 plt.savefig("spectrum")
 """
 
-"""
+
 # statistical anaylsis, This is used to found out different bg noice accross different channel and different board
 for idx_board_sta in range(existed_board_id.shape[0]):
     channel_noise_mean = np.zeros([existed_channel_id.shape[0]])
@@ -512,6 +514,8 @@ for idx_board_sta in range(existed_board_id.shape[0]):
         else:
             channel_noise_mean[idx_channel_sta] = np.nan
             channel_noise_sigma[idx_channel_sta] = np.nan
+    np.savetxt(f'Noise_level/Board{board_id[0,idx][0]}_noise_mean',channel_noise_mean)
+    np.savetxt(f'Noise_level/Board{board_id[0,idx][0]}_noise_sigma',channel_noise_sigma)
     fig,ax1 = plt.subplots(2,1,sharex=True)
     ax1[0].plot(channel_noise_mean,label = r'$\overline{noise}$',color='b')
     ax2 = ax1[0].twinx()
@@ -540,5 +544,4 @@ for idx_board_sta in range(existed_board_id.shape[0]):
                             size = 10,
                             arrowprops=dict(arrowstyle="->", connectionstyle="arc3",linestyle = '--'),
                             )
-    fig.savefig(f"noise_boardID{board_id[0,idx][0]}")
-"""
+    fig.savefig(f"output/noise_boardID{board_id[0,idx][0]}")
