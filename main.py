@@ -3,16 +3,20 @@ import matplotlib.pyplot as plt
 #import matplotlib.mlab as mlab
 from tqdm import tqdm
 #from scipy.signal import find_peaks
-#from scipy.stats import norm
+from scipy.stats import norm
 #from sklearn.mixture import GaussianMixture
+#import ruptures as rpt
+from sklearn.cluster import DBSCAN
 plt.rcParams['text.usetex'] = True
 
-event_max_interval = 200# Maxima time allowed for two external trigger file to be considered in same event(unit 2.5ns)
+event_max_interval = 1000# Maxima time allowed for two external trigger file to be considered in same event(unit 2.5ns)
+interval_trigger_interval = 20# Maxima time allowed for two Inrtnal trigger file to be considered in same event(unit 25ns)
 inte_range = np.array([-3,6])#area used to calculate integartion
 bg_range = 20# use wavedatapoint[0:bg_range] to calculate background
+use_external_noise_file = True # set True if use external noise file, (stored in Noise_level/)
 
 #load file 
-file_name = "data_file/RAW_data_PreAmp_All_1.bin"
+file_name = "data_file/RAW_data_20251229_184323.bin"
 file = np.fromfile(file_name,dtype=np.uint8)# common decoding
 file_head = np.fromfile(file_name,dtype=(np.void,4))# for finding general package head
 
@@ -53,6 +57,14 @@ existed_board_id = np.unique(board_id)
 print(f"Board with ID {existed_board_id} founded in the file")
 existed_pack_id = np.unique(pack_id)
 print(f"Package with ID {existed_pack_id} founded in the file")
+
+# Open external noise file(if needed)
+if use_external_noise_file:
+    external_noise_mean = np.zeros([existed_board_id.shape[0],64])
+    external_noise_sigma = np.zeros([existed_board_id.shape[0],64])
+    for external_noise_board_id in range(existed_board_id.shape[0]):
+        external_noise_mean[external_noise_board_id] = np.loadtxt(f'Noise_level/Board{existed_board_id[external_noise_board_id]}_noise_mean')
+        external_noise_sigma[external_noise_board_id] = np.loadtxt(f'Noise_level/Board{existed_board_id[external_noise_board_id]}_noise_sigma')
 
 existed_board_id_new = np.zeros(existed_board_id.shape[0])
 for idx,new_id in enumerate(np.array([254,18,16,19,2,5,17,15,28,13])):
@@ -241,10 +253,16 @@ if num_ext_tri != 0:
             event_ext_trig_counts[idx_tri,0] = ext_tri_count[idx_tri]
             event_ext_trig_counts_num[idx_tri] = 1
         else:
-            #print(event_ext_trig_counts_num[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp))])
-            event_ext_trig_counts[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp)),event_ext_trig_counts_num[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp))]] = ext_tri_count[idx_tri]
-            #print(event_ext_trig_counts[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp)),:])
-            event_ext_trig_counts_num[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp))] += 1 
+            if event_ext_trig_counts_num[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp))] < 2:
+                #print(event_ext_trig_counts_num[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp))])
+                event_ext_trig_counts[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp)),event_ext_trig_counts_num[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp))]] = ext_tri_count[idx_tri]
+                #print(event_ext_trig_counts[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp)),:])
+                event_ext_trig_counts_num[np.nanargmin(np.abs(ext_tri_source_stamp[idx_tri]-event_ext_trig_stamp))] += 1 
+            else:
+                event_ext_trig_stamp[idx_tri] = ext_tri_source_stamp[idx_tri]
+                event_ext_trig_stamp_exceed[idx_tri] = ext_tri_stamp_exceed[idx_tri]
+                event_ext_trig_counts[idx_tri,0] = ext_tri_count[idx_tri]
+                event_ext_trig_counts_num[idx_tri] = 1
     event_ext_trig_counts_num = event_ext_trig_counts_num[~np.isnan(event_ext_trig_counts[:,0])]
     event_ext_trig_counts = event_ext_trig_counts[~np.isnan(event_ext_trig_counts[:,0]),:]
     event_ext_trig_stamp = event_ext_trig_stamp[~np.isnan(event_ext_trig_stamp)]
@@ -257,8 +275,144 @@ if num_ext_tri != 0:
     event_num = event_ext_trig_counts.shape[0]
     print(f"{event_num} events found")
 
-else: print("No external trigger package found")
+else: 
+    print("No external trigger package found")
+    # event finder for internal trigger
+    '''
+    stamps_intervals = np.diff(existed_time_stamp)
+    cumulative_interval = 0
+    stamp_marks = [0]
+    for this_idx,stamp_interval in enumerate(stamps_intervals):
+        if stamp_interval > interval_trigger_interval / 1.2:
+            stamp_marks.append(this_idx+1)
+            cumulative_interval = 0
+        else:
+            cumulative_interval += stamp_interval
+        if cumulative_interval > interval_trigger_interval:
+            stamp_marks.append(this_idx+1)
+            cumulative_interval = 0
+    stamp_marks.append(this_idx+1)
+    stamp_marks = np.array(stamp_marks)
+    '''
+    '''
+    algo = rpt.Pelt(model="l2",min_size=2).fit(np.diff(existed_time_stamp))  
+    stamp_marks = np.append(0,np.array(algo.predict(pen=10)))
+    print(stamp_marks)
+    '''    
+    '''
+    internal_event_stamp = np.zeros([stamp_marks.shape[0]-1,np.max(np.diff(stamp_marks))])*np.nan
+    internal_event_stamp_valid = np.zeros([stamp_marks.shape[0]-1,np.max(np.diff(stamp_marks))],dtype = bool)
+    for this_idx,stamp_mark in enumerate(stamp_marks[1:]):
+        internal_event_stamp[this_idx,0:(stamp_mark-stamp_marks[this_idx])] = existed_time_stamp[stamp_marks[this_idx]:stamp_mark]
+        internal_event_stamp_valid[this_idx,0:stamp_mark-stamp_marks[this_idx]]  = True
+    '''
+    clustering = DBSCAN(eps=interval_trigger_interval, min_samples=2).fit(np.reshape(existed_time_stamp,(-1,1)))
+    print(clustering.labels_)
+    existed_labels,counts = np.unique(clustering.labels_ ,return_counts=True )
+    internal_event_stamp = np.zeros([existed_labels.shape[0],np.max(counts)])*np.nan
+    internal_event_stamp_valid = np.zeros([existed_labels.shape[0],np.max(counts)],dtype = bool)
+    for idx,label in enumerate(existed_labels):
+        internal_event_stamp[idx,0:counts[idx]] = existed_time_stamp[clustering.labels_  == label]
+        internal_event_stamp_valid[idx,0:counts[idx]] = True
+    print(f'{internal_event_stamp.shape[0]} event found')
+    #print(internal_event_stamp)
+    #print(internal_event_stamp_valid)
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# calculate area under line for internal trigger
+area_under_line = np.zeros(internal_event_stamp.shape[0])
+valid_package_count = np.zeros(internal_event_stamp.shape[0])
+valid_channel_count = np.zeros([internal_event_stamp.shape[0],64])
+print_max = []
+for event_idx in range(internal_event_stamp.shape[0]):
+    event_time_stamps = internal_event_stamp[event_idx,:][internal_event_stamp_valid[event_idx,:]]
+    for time_stamp in event_time_stamps:
+        pack_idxs = pack_pointer_board_channel_timeStamp[:,:,np.where(existed_time_stamp==time_stamp)][pack_pointer_board_channel_timeStamp_valid[:,:,np.where(existed_time_stamp==time_stamp)]].flatten()
+        #print(pack_idxs)
+        for pack_idx in pack_idxs:
+            output_data = wave_sample_data[pack_idx][wave_sample_data_valid[pack_idx]]
+            if use_external_noise_file:
+                bg = external_noise_mean[np.where(existed_board_id==board_id[0,pack_idx]),sub_pack_channel_id_int[pack_idx]]
+                bg_std = external_noise_sigma[np.where(existed_board_id==board_id[0,pack_idx]),sub_pack_channel_id_int[pack_idx]]
+            else:
+                bg = np.mean(output_data[0:bg_range])
+                bg_std = np.std(output_data[0:bg_range])
+            #if np.max(output_data) < bg+8*bg_std:continue
+            area_under_line[event_idx] += np.max(output_data)
+            valid_package_count[event_idx] += 1 
+            valid_channel_count[event_idx,sub_pack_channel_id_int[np.where(existed_board_id==board_id[0,pack_idx])]] += 1
+            print_max.append(np.max(output_data))
+
+#area_under_line = area_under_line[valid_package_count>2]
+#alid_channel_count = valid_channel_count[valid_package_count>2,:]
+#valid_package_count = valid_package_count[valid_package_count>2]
+
+print(f'Total valid event: {np.count_nonzero(valid_package_count)}')
+print(f'Total valid package: {np.sum(valid_package_count)},(average = {np.mean(valid_package_count)})')
+
+num_bins = 500
+(mu,sigma) = norm.fit(area_under_line[np.logical_and(area_under_line>4400,area_under_line<7600)])
+(mu2,sigma2) = norm.fit(area_under_line[np.logical_and(area_under_line>2000,area_under_line<3800)])
+plt.figure()
+plt.hist(area_under_line,density=True,bins = num_bins,histtype='step',range = [0,10000],color="#445D6C80")
+#x = np.linspace(1000,9000,1000)
+#plt.plot(x,norm.pdf(x,mu,sigma)*np.count_nonzero(area_under_line[np.logical_and(area_under_line>4400,area_under_line<7600)])/area_under_line.shape[0]+
+#         norm.pdf(x,mu2,sigma2)*np.count_nonzero(area_under_line[np.logical_and(area_under_line>2000,area_under_line<3800)])/area_under_line.shape[0]
+#         ,'--',label = r"$n = n_1 + n_2$"
+#         )
+x = np.linspace(3000,9000,1000)
+plt.plot(x,norm.pdf(x,mu,sigma)*
+         np.count_nonzero(area_under_line[np.logical_and(area_under_line>4400,area_under_line<7600)])/area_under_line.shape[0]
+         ,'--',label = r"$n_1 \sim N(\mu_1,{\sigma_1}^2)$"
+         )
+x = np.linspace(1000,5000,1000)
+plt.plot(x,norm.pdf(x,mu2,sigma2)*
+         np.count_nonzero(area_under_line[np.logical_and(area_under_line>2000,area_under_line<3800)])/area_under_line.shape[0]
+         ,'--',label = r"$n_2 \sim N(\mu_2,{\sigma_2}^2)$"
+         )
+
+
+plt.xlabel(r"$Q[LSB]$")
+plt.ylabel(r"$Number \ density$")
+plt.figtext(0.15,0.8,rf'$\\ Total \ event:{internal_event_stamp.shape[0]} \\ Valid \ event:{np.size(area_under_line[~np.isnan(area_under_line)])} \\ Normal \ Fitting \\ \mu_1  = {mu:.1f} \ \sigma_1 = {sigma:.1f} \\ \mu_2  = {mu2:.1f} \ \sigma_2 = {sigma2:.1f}$')
+plt.legend()
+plt.savefig('output/spectrum.png')
+
+'''
+plt.figure()
+plt.hist(print_max,bins = 48,histtype='step',range = [0,4096])
+plt.xlabel(r"$Q[LSB]$")
+plt.ylabel(r"$Count$")
+plt.savefig('output/pack_maxima.png')
+'''
+
+bins = np.linspace(0,20,21)
+#print(np.unique(valid_package_count,return_counts=True))
+plt.figure()
+#plt.hist(np.count_nonzero(valid_channel_count,axis=1),bins=bins,histtype='step',align='right')
+plt.hist(valid_package_count,bins=bins,histtype='step',align='left')
+plt.xticks(bins)
+plt.xlabel(r"$Number \ of \ package \ in \ an \ event$")
+plt.ylabel(r"$Count$")
+plt.savefig('output/package_used.png')
+
+'''
+bins = np.linspace(0,63,64)
+plt.figure()
+plt.hist(sub_pack_channel_id_int[board_id[0,:] == 254],bins = bins)
+#plt.xticks(bins)
+plt.xlabel(r"$Channel \ of \ package$")
+plt.ylabel(r"$Count$")
+plt.savefig('output/channel_used_254.png')
+'''
+'''
+bins = np.linspace(0,64,65)
+for this_board_id in existed_board_id:
+    hist,_ = np.histogram(sub_pack_channel_id_int[board_id[0,:] == this_board_id],bins = bins)
+    #print(hist)
+    np.savetxt(f'output/Board{this_board_id}_channel_count',np.round((np.stack((bins[0:64],hist),axis = -1))),header ='ChannelID Count',fmt = ['%i','%i'])
+'''
+
 """
 #find time difference with a external trigger
 area_under_line = np.zeros(event_num)
@@ -270,35 +424,42 @@ for event_idx in tqdm(range (event_num)):
     #print(f'{event_idx+1}: External trigger counts considered in same event: {event_ext_trig_counts[event_idx,0:event_ext_trig_counts_num[event_idx]]}')
     difference = np.array([])
 
-    for this_idx,this_count in enumerate(event_ext_trig_counts[event_idx,0:event_ext_trig_counts_num[event_idx]]):
+    for this_count in event_ext_trig_counts[event_idx,0:event_ext_trig_counts_num[event_idx]]:
         pack_idxs = np.where(sub_pack_trigger_source_count == this_count)[0]
         pack_idxs_valid = if_data_package[pack_idxs]
         difference = np.append(difference, event_ext_trig_stamp[event_idx] * 2.5 - sub_pack_trigger_source_stamp[pack_idxs][if_data_package[pack_idxs]] * 25)
-        num_pack[event_idx] += np.size(pack_idxs)
         for pack_idx in pack_idxs:
             output_data = wave_sample_data[pack_idx][wave_sample_data_valid[pack_idx]]
             if np.size(output_data) == 0: continue
             #if np.max(output_data) < 300: continue
             #print(output_data)
-            bg = np.mean(output_data[0:bg_range])
-            bg_std = np.std(output_data[0:bg_range])
+            if use_external_noise_file:
+                bg = external_noise_mean[np.where(existed_board_id==board_id[0,pack_idx]),sub_pack_channel_id_int[pack_idx]]
+                bg_std = external_noise_sigma[np.where(existed_board_id==board_id[0,pack_idx]),sub_pack_channel_id_int[pack_idx]]
+            else:
+                bg = np.mean(output_data[0:bg_range])
+                bg_std = np.std(output_data[0:bg_range])
+            #print(bg)
+            #print(bg_std)
             #found maxima
             if np.max(output_data) == 4095:
                 idx_max = np.round(np.mean(np.where(output_data==4095)[0])).astype(np.int32)
             else: idx_max = np.argmax(output_data)
-            if idx_max > 80:continue
-            if idx_max < 20:continue
+
+            
 
             area = np.max(output_data)
             # #if (area/(25*(inte_range[1]-inte_range[0]))) / bg < 1.2: continue
-            if np.mean(output_data[idx_max+inte_range[0]:idx_max+inte_range[1]]) < bg + 8 * bg_std: continue
+            # if np.mean(output_data[idx_max+inte_range[0]:idx_max+inte_range[1]]) < bg + 7 * bg_std: continue
+            if np.max(output_data) < bg + 7 * bg_std: continue
             
             #area = np.trapz(output_data[idx_max+inte_range[0]:idx_max+inte_range[1]],dx = 25)# unit of dx = ns
             #print((area/(25*(inte_range[1]-inte_range[0]))) / bg )
             
             valid_pack_count[event_idx] +=1
             area_under_line[event_idx] += area
-    if num_pack[event_idx] != 128: valid_pack_count[event_idx] = 0
+    num_pack[event_idx] = np.unique(difference).shape[0]
+    #if num_pack[event_idx] != 128: valid_pack_count[event_idx] = 0
     #print(np.unique(difference).shape[0])
     #print(difference)
     #if valid_pack_count < 10:area_under_line[event_idx] += np.nan
@@ -307,25 +468,30 @@ for event_idx in tqdm(range (event_num)):
     #print(f'    Time difference: {np.diff(np.unique(difference))}')
     #print(f'    Sum of area under peak: {area_under_line[event_idx]}')
 
-area_under_line = area_under_line[valid_pack_count > 0]
-valid_pack_count = valid_pack_count[valid_pack_count > 0]
+area_under_line = area_under_line[valid_pack_count > 1]
+valid_pack_count = valid_pack_count[valid_pack_count > 1]
+#area_under_line = area_under_line[valid_pack_count < 20]
+#valid_pack_count = valid_pack_count[valid_pack_count < 20]
+
 plt.figure()
-plt.hist(valid_pack_count,bins = np.round(np.max(valid_pack_count) - np.min(valid_pack_count)).astype(np.int32),histtype='step')
+plt.hist(valid_pack_count,bins = 129,histtype='step',range = [0,128])
 plt.xlabel(r"$Number \ of \ packages \ in \ an \ event$")
 plt.ylabel(r"$Count$")
-plt.savefig('channel_used.png')
+plt.savefig('output/channel_used.png')
+
+
 
 plt.figure()
-plt.hist(event_ext_trig_counts_num,histtype='step')
+plt.hist(num_pack,histtype='step')
 plt.xlabel(r"$Number \ of \ trigger \ in \ an \ event$")
 plt.ylabel(r"$Count$")
-plt.savefig('time_stamp_event.png')
+plt.savefig('output/time_stamp_event.png')
 
-print(f"{np.unique(num_pack,return_counts=True)}")
+#print(f"{np.unique(num_pack,return_counts=True)}")
 
 
 
-num_bins = 48
+num_bins = 72
 ratio_inti = 2
 throld = 1
 
@@ -335,7 +501,7 @@ print(f'Valid event: {np.size(area_under_line)} (area > 0)')
 #print(f'Cutting throld: {cut_num} Valid event: {np.size(area_under_line)}')
 hist,bins = np.histogram(area_under_line,bins=num_bins)
 #fitting
-(mu,sigma) = norm.fit(area_under_line[area_under_line<ratio_inti*bins[np.argmax(hist)]])
+#(mu,sigma) = norm.fit(area_under_line[np.logical_and(area_under_line>25000,area_under_line<35000)])
 
 #(mu,sigma) = norm.fit(area_under_line[np.logical_and(area_under_line > 20000 , area_under_line < 40000)])
 #(mu2,sigma2) = norm.fit(area_under_line[area_under_line>ratio_inti*bins[np.argmax(hist)]])
@@ -347,10 +513,10 @@ hist,bins = np.histogram(area_under_line,bins=num_bins)
 plt.figure()
 plt.hist(area_under_line,bins=num_bins,histtype='step')#,range = [0,2e7])
 xlim,xmax = plt.xlim()
-x = np.linspace(xlim,xmax,1000)
+x = np.linspace(25000,35000,1000)
 #print(np.trapz(hist,dx = bins[1]-bins[0]))
 
-plt.plot(x,(bins[1]-bins[0])*np.sum(hist[bins[0:bins.shape[0]-1]<ratio_inti*bins[np.argmax(hist)]])*norm.pdf(x,mu,sigma))
+#plt.plot(x,(bins[1]-bins[0])*np.sum(hist[np.logical_and(bins>25000,bins<35000)[0:num_bins]])*norm.pdf(x,mu,sigma))
 
 #plt.plot(x,gmm.weights_[0]*(bins[1]-bins[0])*np.sum(hist)*norm.pdf(x,gmm.means_[0,0],np.sqrt(gmm.covariances_[0,0,0])))
 #plt.plot(x,gmm.weights_[1]*(bins[1]-bins[0])*np.sum(hist)*norm.pdf(x,gmm.means_[1,0],np.sqrt(gmm.covariances_[1,0,0])))
@@ -360,9 +526,12 @@ plt.plot(x,(bins[1]-bins[0])*np.sum(hist[bins[0:bins.shape[0]-1]<ratio_inti*bins
 plt.xlabel(r"$Q[LSB]$")
 plt.ylabel(r"$Count$")
 #plt.figtext(0.55,0.8,rf'$\\ Total \ event:{event_idx} \\ Valid \ event:{np.size(area_under_line[~np.isnan(area_under_line)])} \\ Integration \ width:{inte_range[1]-inte_range[0]-1} \\ Ignore \ 0<area<{throld}\times Maxima \\ Normal \ Fitting \\ \mu _1  = {gmm.means_[0,0]:.0f} \ \mu _2 = {gmm.means_[1,0]:.0f}\\ \sigma _1 = {np.sqrt(gmm.covariances_[0,0,0]):.0f} \ \sigma _2 = {np.sqrt(gmm.covariances_[1,0,0]):.0f}$')
-plt.figtext(0.55,0.8,rf'$\\ Total \ event:{event_idx} \\ Valid \ event:{np.size(area_under_line[~np.isnan(area_under_line)])} \\ Integration \ width:{inte_range[1]-inte_range[0]-1} \\ Consider \ 0<area<{throld}\times Maxima \\ Normal \ Fitting \\ \mu  = {mu:0f}\\ \sigma = {sigma:0f}$')
-plt.savefig("spectrum")
+#plt.figtext(0.55,0.8,rf'$\\ Total \ event:{event_idx} \\ Valid \ event:{np.size(area_under_line[~np.isnan(area_under_line)])} \\ Integration \ width:{inte_range[1]-inte_range[0]-1} \\ Consider \ 0<area<{throld}\times Maxima \\ Normal \ Fitting \\ \mu  = {mu:0f}\\ \sigma = {sigma:0f}$')
+plt.figtext(0.55,0.8,rf'$\\ Total \ event:{event_idx} \\ Valid \ event:{np.size(area_under_line[~np.isnan(area_under_line)])}$')
+plt.savefig("output/spectrum.png")
+plt.savefig("output/spectrum.png")
 """
+
 """
 #print(sub_pack_trigger_source_stamp)
 board_id_idx_test = np.where(existed_board_id==254)[0]
@@ -371,6 +540,7 @@ print(idx)
 print(sub_pack_trigger_source_stamp[idx])
 print(sub_pack_trigger_source_count[idx])
 """
+
 """
 idx_g_board = []
 idx_g_channel = []
@@ -380,7 +550,7 @@ for idx_board_tri in range(existed_board_id.shape[0]):
         for idx_timestamp_tri in range(existed_time_stamp.shape[0]):
             if not pack_pointer_board_channel_timeStamp_valid[idx_board_tri,idx_channel_tri,idx_timestamp_tri]: continue
             idx = pack_pointer_board_channel_timeStamp[idx_board_tri,idx_channel_tri,idx_timestamp_tri]
-            #if not existed_board_id[idx_board_tri] == 19: continue
+            if not existed_board_id[idx_board_tri] == 254: continue
             #if not existed_channel_id[idx_channel_tri] == 32: continue
             if np.max(wave_sample_data[idx][wave_sample_data_valid[idx]]) >= 300:
                 idx_g_board.append(idx_board_tri)
@@ -411,7 +581,7 @@ areas_count = np.zeros(num_ext_tri+1)
 cut_low = 0
 cut_high = 0
 for idx in tqdm(range(idx_g_board.shape[0])):
-    board_id_idx_test = idx_g_board[idx]#0#np.where(existed_board_id==2)[0]
+    board_id_idx_test = np.where(existed_board_id==254)[0]#idx_g_board[idx]#0#
     channel_id_idx_test = idx_g_channel[idx]#0#np.where(existed_channel_id==47)[0]
     #print(np.where(pack_pointer_board_channel_timeStamp_valid[board_id_idx_test,channel_id_idx_test,:]))
     timeStamp_idx_test = idx_g_timestamp[idx]#np.where(pack_pointer_board_channel_timeStamp_valid[0,0,:])[0][0]#np.where(existed_time_stamp=='0xf8d5610')[0]
@@ -424,7 +594,7 @@ for idx in tqdm(range(idx_g_board.shape[0])):
     #print(f"Test board id: {board_id_test},test channel_id: {channel_id_test}, test timeStamp: {timeStamp_test}")
 
     if pack_pointer_board_channel_timeStamp_valid[board_id_idx_test,channel_id_idx_test,timeStamp_idx_test]:
-        if not idx % (137*5) == 0 : continue
+        #if not idx % (137*5) == 0 : continue
         #print("Pack found")
         this_idx = pack_pointer_board_channel_timeStamp[board_id_idx_test,channel_id_idx_test,timeStamp_idx_test]
         this_tri_count = sub_pack_trigger_source_count[this_idx]
@@ -432,13 +602,16 @@ for idx in tqdm(range(idx_g_board.shape[0])):
 
         #bg_infro
         bg = np.mean(output_data[0:bg_range])
-
+        '''
         #found maxima
         if np.max(output_data) == 4095:
             idx_max = np.round(np.mean(np.where(output_data==4095)[0])).astype(np.int32)
         else: idx_max = np.argmax(output_data)
-        
-        
+        '''
+        algo = rpt.Dynp(model="l2", min_size=3, jump=7).fit(output_data)
+        idx_max = algo.predict(n_bkps=2)[0:2]
+        #print(idx_max)
+
         '''
         peaks,__ = find_peaks(output_data,width = 16)
         if np.size(peaks) == 0 :
@@ -450,22 +623,24 @@ for idx in tqdm(range(idx_g_board.shape[0])):
         else:idx_max = peaks[0]
         '''
 
-        area = np.trapz(output_data[idx_max+inte_range[0]:idx_max+inte_range[1]],dx = 25)# unit of dx = ns
-        area_m_bg = np.trapz(output_data[idx_max+inte_range[0]:idx_max+inte_range[1]]-bg,dx = 25)# unit of dx = ns
+        #area = np.trapz(output_data[idx_max+inte_range[0]:idx_max+inte_range[1]],dx = 25)# unit of dx = ns
+        #area_m_bg = np.trapz(output_data[idx_max+inte_range[0]:idx_max+inte_range[1]]-bg,dx = 25)# unit of dx = ns
         
-        output_mean = np.mean(output_data)
-        output_std = np.std(output_data)
+        #output_mean = np.mean(output_data)
+        #output_std = np.std(output_data)
 
-        areas[this_tri_count] += area_m_bg
-        areas_count[this_tri_count] += 1
+        #areas[this_tri_count] += area_m_bg
+        #areas_count[this_tri_count] += 1
         
         plt.figure()
         #plt.text(300,10,rf'$\sigma = {output_std:.3f},\\ mean = {output_mean:.3f}$')
         plt.plot(output_data)
-        plt.annotate(text = rf'$Area: {area:.1f} \enspace LSB \times ns \\ Area \enspace - \enspace background: {area_m_bg:.1f} \enspace LSB \times ns \\Index \enspace of \enspace Maxima: {idx_max}$',xy=(idx_max+inte_range[1]+1,np.max(output_data)*0.7))
+        #plt.annotate(text = rf'$Area: {area:.1f} \enspace LSB \times ns \\ Area \enspace - \enspace background: {area_m_bg:.1f} \enspace LSB \times ns \\Index \enspace of \enspace Maxima: {idx_max}$',xy=(idx_max+inte_range[1]+1,np.max(output_data)*0.7))
         #plt.fill_between(np.arange(idx_max+inte_range[0],idx_max+inte_range[1]+1),output_data[idx_max+inte_range[0]:idx_max+inte_range[1]+1],color = "c",hatch='//',alpha=0.3,label=r"$Area_{signal}$")
-        plt.axvline(idx_max+inte_range[0],ls='--',color = 'r')
-        plt.axvline(idx_max+inte_range[1],ls='--',color = 'r')
+        plt.axvline(idx_max[0],ls='--',color = 'r')
+        plt.axvline(idx_max[1],ls='--',color = 'r')
+        #plt.axvline(idx_max+inte_range[0],ls='--',color = 'r')
+        #plt.axvline(idx_max+inte_range[1],ls='--',color = 'r')
         
         plt.fill_between(np.arange(0,bg_range+1),output_data[0:bg_range+1],color = "g",hatch='//',alpha=0.3,label = r"$Area_{noise}$")
         plt.axhline(bg,ls='--',color = 'g',label=r"$Average \enspace noise$")
@@ -476,10 +651,11 @@ for idx in tqdm(range(idx_g_board.shape[0])):
         plt.xlabel(r'$Time (\times 25ns)$')
         plt.ylabel(r'$Data$')
         plt.ylim(bottom=0)
-        plt.title(rf'$Board Id: {board_id[0,idx]}(New Id:{existed_board_id_new[existed_board_id == board_id[0,idx]].astype(np.int32)[0]}),Channel Id: {sub_pack_channel_id_int[idx]},Time Stamp: {sub_pack_trigger_source_stamp[idx]}$')
+        plt.title(rf'$Board Id: {board_id[0,this_idx]}(New Id:{existed_board_id_new[existed_board_id == board_id[0,this_idx]].astype(np.int32)[0]}),Channel Id: {sub_pack_channel_id_int[this_idx]},Time Stamp: {sub_pack_trigger_source_stamp[this_idx]}$')
         plt.savefig(f"output/Wave_samples/B{board_id_test}C{channel_id_test}T{timeStamp_test}.png")
         plt.close()
         idx_head_test = idx_head[0,idx]
+        #print(f"{output_std}")
         #print(file[idx_head_test:idx_head_test+800])
        
 
@@ -499,7 +675,7 @@ plt.xlabel(r'$Normalized \enspace Area$')
 plt.savefig("spectrum")
 """
 
-
+"""
 # statistical anaylsis, This is used to found out different bg noice accross different channel and different board
 for idx_board_sta in range(existed_board_id.shape[0]):
     channel_noise_mean = np.zeros([existed_channel_id.shape[0]])
@@ -545,3 +721,4 @@ for idx_board_sta in range(existed_board_id.shape[0]):
                             arrowprops=dict(arrowstyle="->", connectionstyle="arc3",linestyle = '--'),
                             )
     fig.savefig(f"output/noise_boardID{board_id[0,idx][0]}")
+"""

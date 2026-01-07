@@ -2,7 +2,7 @@
 This is the code used to decode packages from GRS_AD64, based on version 2.0 2019.06 data sheet
 
 ## How to use the code
-To use this code, `python3` and packages of `numpy`,`matplotlib`,`tqdm` are requied. To use the code, create a folder `data_file` in the same path as the code, change variable `file_name` to the bin file you want to process. 
+To use this code, `python3` and packages of `numpy`,`matplotlib`,`tqdm`,`sk-learn` are requied. To use the code, create a folder `data_file` in the same path as the code, change variable `file_name` to the bin file you want to process. 
 ```
 file_name = "data_file/your_file_name.bin"
 ```
