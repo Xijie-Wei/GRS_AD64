@@ -33,3 +33,54 @@ File
 |   |   |-- There would be multiple ADC data package having the same external trigger count
 |   |   |   |-- Every ADC data package have a board ID, channel ID, time stamp, and its data points
 ```
+
+## Packed function
+21 Jan 2026
+
+Now the unpack part of the code is packed as a function, just for simplification. Function stored in `unpack_package.py`. This function requires `numpy`,`tqdm`,`sklearn`.
+To use the function 
+
+`from unpack_package import UnpackPackage`
+
+The output contains two dictionary `Package_data` and `Trigger_data`
+
+`Package_data` is unique and independ with trigger type, contains information with all datas in the file.
+
+The data structure is shown
+```
+Package_data
+|-- "PackagePointer": Pointer labeling package with board id channel id and time stamp
+|-- "PackagePointerValid": True means this pointer is used
+
+|-- "ExistedBoardId": All possible board id existed in the file
+|-- "ExistedChannelId": All possible channel id existed in the file
+|-- "ExistedTimeStamp": All possible time stamp existed in the file
+
+|-- "BoardId": Board id of the package
+|-- "SubPackageChannelId": Subpakage channel id
+|-- "SubPackageTriggerStamp": Subpakage trigger stamp
+|-- "SubPackageTriggerCount": Subpakage trigger count
+
+|-- "WaveSampleData": Wave sample data of the package pointed by the pointer
+|-- "WaveSampleDataValid": True if this element in the wave sample is used
+```
+
+`Trigger_data` contains information of events in generated, this dictionary various when using external or internal data
+
+If there is external trigger package in the file, the code is going to use time stamp in external trigger to reconstruct event. The data structure is shown
+```
+`Trigger_data`
+|-- "EventNum": Number of events
+|-- "EventExtTriggerCountNum": Number of trigger counts in a event
+|-- "EventExtTriggerCount": Trigger counts in a event
+|-- "EventExtTriggerTimeStamp": Time stamp in of the event
+|-- "EventExtTriggerTimeStampExcceed": If the time stamp exceeds
+```
+
+If there is no external trigger package, i.e. the file only contains wave data package, the code would use internal timestamp to reconstruct the events. The data structure is shown
+```
+`Trigger_data`
+|-- "EventNum": Number of events
+|-- "EventIntTimeStamp": Time stamp in a event
+|-- "EventIntTimeStampValid": If this element is used
+```
