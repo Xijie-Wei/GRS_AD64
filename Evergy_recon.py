@@ -165,8 +165,8 @@ plt.figtext(0.15,0.8,rf'$\\ Total \ event:{internal_event_stamp.shape[0]} \\ Val
 plt.savefig('output/spectrum.png')
 
 #---------------------------------------------------------------------------------------------
-fitting_bound1 = [3000,5000]
-fitting_bound2 = [1400,2200]
+fitting_bound1 = [3200,5000]
+fitting_bound2 = [1500,2400]
 
 
 fig = plt.figure(figsize=[7,4.8])
@@ -224,6 +224,8 @@ sigma1 = fitting1.params['sigma'].value
 mu2 = fitting2.params['center'].value
 sigma2 = fitting2.params['sigma'].value
 
+pp_ratio = fitting1.params['amplitude'].value / fitting2.params['amplitude'].value
+
 # load simulation data
 simu_data = ROOT.TFile.Open('output0.root')
 tree = simu_data.Get("TEdep")
@@ -251,7 +253,7 @@ ax_ru.spines["right"].set_color("#000000FF")
 ax_ru.set_xlabel(r"$Deposit \ energy \ [keV]$")
 ax_ru.set_ylabel(r"$Count (\times 10^6)$")
 
-G4_simu = ax_ru.hist(Edep,bins = 48,range = [0,7200*5.9/mu],histtype='step',color = "#000000FF",label = r"$Geant4 \ data$",align = 'right')
+G4_simu = ax_ru.hist(Edep,bins = 64,range = [0,7200*5.9/mu],histtype='step',color = "#000000FF",label = r"$Geant4 \ data$",align = 'right')
 simu_hist,simu_bins = np.histogram(Edep,bins = num_bins)
 simu_peak_main =  np.count_nonzero(Edep[np.logical_and(Edep>4,Edep<6)])/Edep.shape[0]
 simu_peak_escape =  np.count_nonzero(Edep[np.logical_and(Edep>2,Edep<4)])/Edep.shape[0]
@@ -274,11 +276,11 @@ lines, labels = ax.get_legend_handles_labels()
 lines2, labels2 = ax_ru.get_legend_handles_labels()
 #ax_top.legend(lines + lines2, labels + labels2, loc=0)
 
-
+print(f"P-p ratio = {pp_ratio:.2f}")
 print(f"Simu P-p ratio = {simu_peak_main/simu_peak_escape:.2f}")
 
 print(fitting1.fit_report())
 print(fitting2.fit_report())
-plt.figtext(0.15,0.8,rf'$\\ Total \ event:{internal_event_stamp.shape[0]} \\ Valid \ event:{np.size(area_under_line[~np.isnan(area_under_line)])} \\ Normal \ Fitting \\ \mu_1  = {mu1:.1f} \ \sigma_1 = {sigma1:.1f} \\ \mu_2  = {mu2:.1f} \ \sigma_2 = {sigma2:.1f} \\ P-p \ ratio = {peak_main/peak_escape:.2f} \\ P-p \ ratio \ (Simu) {simu_peak_main/simu_peak_escape:.2f}$')
+plt.figtext(0.15,0.8,rf'$\\ Total \ event:{internal_event_stamp.shape[0]} \\ Valid \ event:{np.size(area_under_line[~np.isnan(area_under_line)])} \\ Normal \ Fitting \\ \mu_1  = {mu1:.1f} \ \sigma_1 = {sigma1:.1f} \\ \mu_2  = {mu2:.1f} \ \sigma_2 = {sigma2:.1f} \\ P-p \ ratio = {pp_ratio :.2f} \\ P-p \ ratio \ (Simu) {simu_peak_main/simu_peak_escape:.2f}$')
 
 plt.savefig('output/spectrum_filtered.png')
