@@ -84,3 +84,50 @@ If there is no external trigger package, i.e. the file only contains wave data p
 |-- "EventIntTimeStamp": Time stamp in a event
 |-- "EventIntTimeStampValid": If this element is used
 ```
+
+## Loops u may need to scan all data packages in different events
+11 Feb 2026 
+
+Here Im going to list the loops may needed to scan all data packages in different events, for further usage for energy reconstruction and track reconstruction
+### For internal trigger
+```
+for event_idx in range(internal_event_stamp.shape[0]):
+    event_time_stamps = internal_event_stamp[event_idx,:][internal_event_stamp_valid[event_idx,:]]
+    for time_stamp in event_time_stamps:
+        pack_idxs = pack_pointer_board_channel_timeStamp[:,:,np.where(existed_time_stamp==time_stamp)][pack_pointer_board_channel_timeStamp_valid[:,:,np.where(existed_time_stamp==time_stamp)]].flatten()
+        for pack_idx in pack_idxs:
+            output_data = wave_sample_data[pack_idx][wave_sample_data_valid[pack_idx]]
+```
+where we define
+```
+wave_sample_data = data_info["WaveSampleData"]
+wave_sample_data_valid = data_info["WaveSampleDataValid"]
+
+internal_event_stamp = trigger_info["EventIntTimeStamp"]
+internal_event_stamp_valid = trigger_info["EventIntTimeStampValid"]
+
+existed_time_stamp = data_info["ExistedTimeStamp"]
+
+pack_pointer_board_channel_timeStamp = data_info["PackagePointer"]
+pack_pointer_board_channel_timeStamp_valid = data_info["PackagePointerValid"]
+```
+
+### For external trigger 
+```
+for event_idx in range (event_num):
+    for this_count in event_ext_trig_counts[event_idx,0:event_ext_trig_counts_num[event_idx]]:
+        pack_idxs = np.where(sub_pack_trigger_source_count == this_count)[0]
+        for pack_idx in pack_idxs:
+```
+where we define
+```
+event_num = trigger_info["EventNum"]
+event_ext_trig_counts_num = trigger_info["EventExtTriggerCountNum"]
+event_ext_trig_counts = trigger_info["EventExtTriggerCount"]
+
+sub_pack_trigger_source_count = data_info["SubPackageTriggerCount"]
+```
+
+
+>[!TIP]
+>If you want something but cant found them in this `README.md`, try to look through `main.py`. Codes under line 323 are testing analysis codes, include those commented by `"""... """`

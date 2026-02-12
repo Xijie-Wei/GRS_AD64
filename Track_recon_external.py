@@ -12,7 +12,7 @@ bg_range = 20# use wavedatapoint[0:bg_range] to calculate background
 time_stamp_offset = 0
 #-------------------------------------------------------------------------------------------------------
 
-data_info,trigger_info = UnpackPackage("data_file/RAW_data_20260203_171011.bin")
+data_info,trigger_info = UnpackPackage("data_file/RAW_data_20251231_173134.bin")
 
 pack_pointer_board_channel_timeStamp = data_info["PackagePointer"]
 pack_pointer_board_channel_timeStamp_valid = data_info["PackagePointerValid"]
@@ -29,10 +29,16 @@ sub_pack_trigger_source_count = data_info["SubPackageTriggerCount"]
 wave_sample_data = data_info["WaveSampleData"]
 wave_sample_data_valid = data_info["WaveSampleDataValid"]
 
-internal_event_stamp = trigger_info["EventIntTimeStamp"]
-internal_event_stamp_valid = trigger_info["EventIntTimeStampValid"]
+event_num = trigger_info["EventNum"]
+event_ext_trig_counts_num = trigger_info["EventExtTriggerCountNum"]
+event_ext_trig_counts = trigger_info["EventExtTriggerCount"]
+event_ext_trig_stamp = trigger_info["EventExtTriggerTimeStamp"]
+event_ext_trig_stamp_exceed = trigger_info["EventExtTriggerTimeStampExcceed"]
 
 #------------------------------------------------------------------------------------------------------
+
+print(event_ext_trig_stamp)
+print(event_ext_trig_counts)
 
 # Read in board channel potision infomation
 board_channel_location_relation_file = np.loadtxt('BoardChannelLocationRelation.csv')
@@ -48,28 +54,27 @@ board_channel_location_relation = {
 #print(board_channel_location_relation)
 
 #find maxima number of packages in an event
-num_hit_event = np.zeros(internal_event_stamp.shape[0]) # number of hits in a event
-for event_idx in range(internal_event_stamp.shape[0]):
-    event_time_stamps = internal_event_stamp[event_idx,:][internal_event_stamp_valid[event_idx,:]]
-    for time_stamp in event_time_stamps:
-        pack_idxs = pack_pointer_board_channel_timeStamp[:,:,np.where(existed_time_stamp==time_stamp)][pack_pointer_board_channel_timeStamp_valid[:,:,np.where(existed_time_stamp==time_stamp)]].flatten()
+num_hit_event = np.zeros(event_num) # number of hits in a event
+for event_idx in range(event_num):
+    for this_count in event_ext_trig_counts[event_idx,0:event_ext_trig_counts_num[event_idx]]:
+        pack_idxs = np.where(sub_pack_trigger_source_count == this_count)[0]
         num_hit_event[event_idx] += pack_idxs.shape[0]
 num_hit_event = num_hit_event.astype(np.int32)
 
 #-----------------------------------------------------------------------------------------------
-x_hits = np.zeros((internal_event_stamp.shape[0],np.max(num_hit_event),6,3))*np.nan# x position of hits in a event
-y_hits = np.zeros((internal_event_stamp.shape[0],np.max(num_hit_event),6,3))*np.nan# y position of hits in a event
-T0 = np.zeros(internal_event_stamp.shape[0])
+x_hits = np.zeros((event_num,np.max(num_hit_event),6,3))*np.nan# x position of hits in a event
+y_hits = np.zeros((event_num,np.max(num_hit_event),6,3))*np.nan# y position of hits in a event
+T0 = np.zeros(event_num)
 
 # true mean the index is used
-x_hits_valid = np.zeros((internal_event_stamp.shape[0],np.max(num_hit_event)),dtype = np.bool_)
-y_hits_valid = np.zeros((internal_event_stamp.shape[0],np.max(num_hit_event)),dtype = np.bool_)
+x_hits_valid = np.zeros((event_num,np.max(num_hit_event)),dtype = np.bool_)
+y_hits_valid = np.zeros((event_num,np.max(num_hit_event)),dtype = np.bool_)
 
-for event_idx in range(internal_event_stamp.shape[0]):
-    event_time_stamps = internal_event_stamp[event_idx,:][internal_event_stamp_valid[event_idx,:]]
+for event_idx in range (event_num):
     idx = 0
-    for time_stamp in event_time_stamps:
-        pack_idxs = pack_pointer_board_channel_timeStamp[:,:,np.where(existed_time_stamp==time_stamp)][pack_pointer_board_channel_timeStamp_valid[:,:,np.where(existed_time_stamp==time_stamp)]].flatten()
+    time_stamp = event_ext_trig_stamp[event_idx] * 0.1
+    for this_count in event_ext_trig_counts[event_idx,0:event_ext_trig_counts_num[event_idx]]:
+        pack_idxs = np.where(sub_pack_trigger_source_count == this_count)[0]
         #print(pack_idxs)
         for pack_idx in pack_idxs:
             output_data = wave_sample_data[pack_idx][wave_sample_data_valid[pack_idx]]
