@@ -75,6 +75,8 @@ If there is external trigger package in the file, the code is going to use time 
 |-- "EventExtTriggerCount": Trigger counts in a event
 |-- "EventExtTriggerTimeStamp": Time stamp in of the event
 |-- "EventExtTriggerTimeStampExcceed": If the time stamp exceeds
+|-- "ExistedExtTriggerStamp": existed external trigger stamp 
+|-- "ExistedExtTriggerCount": existed external trigger count
 ```
 
 If there is no external trigger package, i.e. the file only contains wave data package, the code would use internal timestamp to reconstruct the events. The data structure is shown

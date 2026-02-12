@@ -12,7 +12,7 @@ bg_range = 20# use wavedatapoint[0:bg_range] to calculate background
 time_stamp_offset = 0
 #-------------------------------------------------------------------------------------------------------
 
-data_info,trigger_info = UnpackPackage("data_file/RAW_data_20251231_173134.bin")
+data_info,trigger_info = UnpackPackage("data_file/RAW_data_20251226_151216.bin")
 
 pack_pointer_board_channel_timeStamp = data_info["PackagePointer"]
 pack_pointer_board_channel_timeStamp_valid = data_info["PackagePointerValid"]
@@ -35,10 +35,13 @@ event_ext_trig_counts = trigger_info["EventExtTriggerCount"]
 event_ext_trig_stamp = trigger_info["EventExtTriggerTimeStamp"]
 event_ext_trig_stamp_exceed = trigger_info["EventExtTriggerTimeStampExcceed"]
 
+ext_tri_count = trigger_info["ExistedExtTriggerCount"]
+ext_tri_source_stamp = trigger_info["ExistedExtTriggerStamp"]
+
 #------------------------------------------------------------------------------------------------------
 
-print(event_ext_trig_stamp)
-print(event_ext_trig_counts)
+#print(event_ext_trig_stamp.shape)
+#print(event_ext_trig_counts)
 
 # Read in board channel potision infomation
 board_channel_location_relation_file = np.loadtxt('BoardChannelLocationRelation.csv')
@@ -72,7 +75,7 @@ y_hits_valid = np.zeros((event_num,np.max(num_hit_event)),dtype = np.bool_)
 
 for event_idx in range (event_num):
     idx = 0
-    time_stamp = event_ext_trig_stamp[event_idx] * 0.1
+    
     for this_count in event_ext_trig_counts[event_idx,0:event_ext_trig_counts_num[event_idx]]:
         pack_idxs = np.where(sub_pack_trigger_source_count == this_count)[0]
         #print(pack_idxs)
@@ -92,11 +95,14 @@ for event_idx in range (event_num):
             #rint(location)
             #print(board_channel_location_relation['BoardId'] == this_board_id)
             #print(board_channel_location_relation['ChannelId'] == this_channel_id)
-            
+
+            time_stamp = ext_tri_source_stamp[ext_tri_count == sub_pack_trigger_source_count[pack_idx]] * 0.1
+
+
             if np.max(output_data) == 4095:
                 Time_wave_peak = np.round(np.mean(np.where(output_data==4095)[0])).astype(np.int32)
             else: Time_wave_peak = np.argmax(output_data)
-
+            #Time_wave_peak = 0
 
             if state:
                 y_hits[event_idx,idx,:,1] = location

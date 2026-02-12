@@ -273,7 +273,9 @@ def UnpackPackage(file_name,event_max_interval=1000,internal_trigger_interval=20
             "EventExtTriggerCountNum": event_ext_trig_counts_num, # Number of trigger counts in a event
             "EventExtTriggerCount": event_ext_trig_counts, # Trigger counts in a event
             "EventExtTriggerTimeStamp": event_ext_trig_stamp, # Time stamp in of the event
-            "EventExtTriggerTimeStampExcceed": event_ext_trig_stamp_exceed # If the time stamp exceeds
+            "EventExtTriggerTimeStampExcceed": event_ext_trig_stamp_exceed, # If the time stamp exceeds
+            "ExistedExtTriggerStamp": ext_tri_source_stamp, # existed external trigger stamp 
+            "ExistedExtTriggerCount": ext_tri_count# existed external trigger count
         }
 
     else: 
